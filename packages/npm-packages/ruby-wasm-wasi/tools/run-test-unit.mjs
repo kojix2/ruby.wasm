@@ -47,6 +47,7 @@ const main = async () => {
   const rootTestFile = "/__root__/test/test_unit.rb";
   const { vm } = await instantiate(rootTestFile);
 
+  Error.stackTraceLimit = Infinity;
   vm.eval(`
     # HACK: Until we've fixed the issue in the test-unit or power_assert
     # See https://github.com/test-unit/test-unit/pull/221
