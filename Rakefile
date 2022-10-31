@@ -13,7 +13,7 @@ BUILD_SOURCES = {
     type: "github",
     repo: "ruby/ruby",
     rev: "master",
-    patches: []
+    patches: ["./patches/0001-openssl-ossl_ssl.c-Disable-SSLContext-servername_cb.patch"]
   }
 }
 
