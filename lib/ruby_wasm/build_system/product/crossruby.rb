@@ -189,6 +189,11 @@ module RubyWasm
       wasi_vfs.install_task&.tap { |t| @dep_tasks << t }
     end
 
+    def with_openssl(openssl)
+      @openssl = openssl
+      @dep_tasks << openssl.install_task
+    end
+
     def dest_dir
       File.join(@rubies_dir, name)
     end
@@ -230,6 +235,7 @@ module RubyWasm
       args << %Q(--with-ext="#{default_exts}")
       args << %Q(--with-libyaml-dir="#{@libyaml.install_root}")
       args << %Q(--with-zlib-dir="#{@zlib.install_root}")
+      args << %Q(--with-openssl-dir="#{@openssl.install_root}") if @openssl
       args << %Q(--with-baseruby="#{baseruby_path}")
 
       case target
