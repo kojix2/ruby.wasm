@@ -14,7 +14,7 @@ BUILD_SOURCES = {
     repo: "ruby/ruby",
     rev: "master",
     patches: [
-      "./patches/0001-openssl-ossl_ssl.c-Disable-SSLContext-servername_cb.patch"
+      "./patches/0001-openssl-Undefine-SSLContext-servername_cb-and-OpenSS.patch"
     ].map{|p| File.expand_path(p)}
   }
 }
