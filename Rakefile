@@ -4,119 +4,130 @@ require "open-uri"
 
 $LOAD_PATH << File.join(File.dirname(__FILE__), "lib")
 
+require "bundler/gem_tasks"
 require "ruby_wasm/rake_task"
+require "ruby_wasm/packager"
+require "ruby_wasm/cli"
 
-Dir.glob("tasks/**.rake").each { |f| import f }
+BUILD_SOURCES = %w[3.3 3.2 head]
+BUILD_PROFILES = %w[full minimal]
 
-BUILD_SOURCES = {
-  "head" => {
-    type: "github",
-    repo: "ruby/ruby",
-    rev: "master",
-    patches: []
-  }
-}
+BUILDS =
+  BUILD_SOURCES
+    .product(BUILD_PROFILES)
+    .map { |src, profile| [src, "wasm32-unknown-wasip1", profile] } +
+    BUILD_SOURCES.map { |src| [src, "wasm32-unknown-emscripten", "full"] }
 
-FULL_EXTS =
-  "bigdecimal,cgi/escape,continuation,coverage,date,dbm,digest/bubblebabble,digest,digest/md5,digest/rmd160,digest/sha1,digest/sha2,etc,fcntl,fiber,gdbm,json,json/generator,json/parser,nkf,objspace,pathname,psych,racc/cparse,rbconfig/sizeof,ripper,stringio,strscan,monitor,zlib"
+NPM_PACKAGES = [
+  {
+    name: "ruby-head-wasm-emscripten",
+    ruby_version: "head",
+    gemfile: nil,
+    target: "wasm32-unknown-emscripten"
+  },
+  {
+    name: "ruby-head-wasm-wasi",
+    ruby_version: "head",
+    gemfile: "packages/npm-packages/ruby-head-wasm-wasi/Gemfile",
+    target: "wasm32-unknown-wasip1",
+  },
+  {
+    name: "ruby-head-wasm-wasip2",
+    ruby_version: "head",
+    gemfile: "packages/npm-packages/ruby-head-wasm-wasip2/Gemfile",
+    target: "wasm32-unknown-wasip2",
+    enable_component_model: true,
+  },
+  {
+    name: "ruby-3.3-wasm-wasi",
+    ruby_version: "3.3",
+    gemfile: "packages/npm-packages/ruby-3.3-wasm-wasi/Gemfile",
+    target: "wasm32-unknown-wasip1"
+  },
+  {
+    name: "ruby-3.2-wasm-wasi",
+    ruby_version: "3.2",
+    gemfile: "packages/npm-packages/ruby-3.2-wasm-wasi/Gemfile",
+    target: "wasm32-unknown-wasip1"
+  },
+  { name: "ruby-wasm-wasi", target: "wasm32-unknown-wasip1" }
+]
 
-BUILD_PROFILES = {
-  "minimal" => {
-    debug: false,
-    default_exts: "",
-    user_exts: []
-  },
-  "minimal-debug" => {
-    debug: true,
-    default_exts: "",
-    user_exts: []
-  },
-  "minimal-js" => {
-    debug: false,
-    default_exts: "",
-    user_exts: %w[js witapi]
-  },
-  "minimal-js-debug" => {
-    debug: true,
-    default_exts: "",
-    user_exts: %w[js witapi]
-  },
-  "full" => {
-    debug: false,
-    default_exts: FULL_EXTS,
-    user_exts: []
-  },
-  "full-debug" => {
-    debug: true,
-    default_exts: FULL_EXTS,
-    user_exts: []
-  },
-  "full-js" => {
-    debug: false,
-    default_exts: FULL_EXTS,
-    user_exts: %w[js witapi]
-  },
-  "full-js-debug" => {
-    debug: true,
-    default_exts: FULL_EXTS,
-    user_exts: %w[js witapi]
-  }
-}
-
-BUILDS = [
-  { src: "head", target: "wasm32-unknown-wasi", profile: "minimal" },
-  { src: "head", target: "wasm32-unknown-wasi", profile: "minimal-debug" },
-  { src: "head", target: "wasm32-unknown-wasi", profile: "minimal-js" },
-  { src: "head", target: "wasm32-unknown-wasi", profile: "minimal-js-debug" },
-  { src: "head", target: "wasm32-unknown-wasi", profile: "full" },
-  { src: "head", target: "wasm32-unknown-wasi", profile: "full-debug" },
-  { src: "head", target: "wasm32-unknown-wasi", profile: "full-js" },
-  { src: "head", target: "wasm32-unknown-wasi", profile: "full-js-debug" },
-  { src: "head", target: "wasm32-unknown-emscripten", profile: "minimal" },
-  { src: "head", target: "wasm32-unknown-emscripten", profile: "full" }
+STANDALONE_PACKAGES = [
+  { name: "ruby", build: "head-wasm32-unknown-wasip1-full" },
+  { name: "irb", build: "head-wasm32-unknown-wasip1-full" }
 ]
 
 LIB_ROOT = File.dirname(__FILE__)
 
 TOOLCHAINS = {}
+BUILDS
+  .map { |_, target, _| target }
+  .uniq
+  .each do |target|
+    build_dir = File.join(LIB_ROOT, "build")
+    toolchain = RubyWasm::Toolchain.get(target, build_dir)
+    TOOLCHAINS[toolchain.name] = toolchain
+  end
+
+class BuildTask < Struct.new(:name, :target, :build_command)
+  def ruby_cache_key
+    return @key if @key
+    require "open3"
+    env = { "RUBY_WASM_ROOT" => LIB_ROOT }
+    cmd = build_command + ["--print-ruby-cache-key"]
+    stdout, status = Open3.capture2(env, *cmd)
+    unless status.success?
+      raise "Command failed with status (#{status.exitstatus}): #{cmd.join " "}"
+    end
+    require "json"
+    @key = JSON.parse(stdout)
+  end
+
+  def hexdigest
+    ruby_cache_key["hexdigest"]
+  end
+  def artifact
+    ruby_cache_key["artifact"]
+  end
+end
 
 namespace :build do
-  BUILDS.each do |params|
-    name = "#{params[:src]}-#{params[:target]}-#{params[:profile]}"
-    source = BUILD_SOURCES[params[:src]].merge(name: params[:src])
-    options = params.merge(BUILD_PROFILES[params[:profile]]).merge(src: source)
-    debug = options[:debug]
-    options.delete :profile
-    options.delete :user_exts
-    options.delete :debug
-    RubyWasm::BuildTask.new(name, **options) do |t|
-      if debug
-        t.crossruby.debugflags = %w[-g]
-        t.crossruby.wasmoptflags = %w[-O3 -g]
-        t.crossruby.ldflags = %w[
-          -Xlinker
-          --stack-first
-          -Xlinker
-          -z
-          -Xlinker
-          stack-size=16777216
-        ]
-      else
-        t.crossruby.debugflags = %w[-g0]
-        t.crossruby.ldflags = %w[-Xlinker -zstack-size=16777216]
+  BUILD_TASKS =
+    BUILDS.map do |src, target, profile|
+      name = "#{src}-#{target}-#{profile}"
+
+      build_command = [
+        "exe/rbwasm",
+        "build",
+        "--ruby-version",
+        src,
+        "--target",
+        target,
+        "--build-profile",
+        profile,
+        "--disable-gems",
+        "-o",
+        "/dev/null"
+      ]
+      desc "Cross-build Ruby for #{target}"
+      task name do
+        sh *build_command
+      end
+      namespace name do
+        task :remake do
+          sh *build_command, "--remake"
+        end
+        task :reconfigure do
+          sh *build_command, "--reconfigure"
+        end
+        task :clean do
+          sh *build_command, "--clean"
+        end
       end
 
-      toolchain = t.toolchain
-      t.crossruby.user_exts =
-        BUILD_PROFILES[params[:profile]][:user_exts].map do |ext|
-          srcdir = File.join(LIB_ROOT, "ext", ext)
-          RubyWasm::CrossRubyExtProduct.new(srcdir, toolchain)
-        end
-      unless TOOLCHAINS.key? toolchain.name
-        TOOLCHAINS[toolchain.name] = toolchain
-      end
+      BuildTask.new(name, target, build_command)
     end
-  end
 
   desc "Clean build directories"
   task :clean do
@@ -126,7 +137,7 @@ namespace :build do
 
   desc "Download prebuilt Ruby"
   task :download_prebuilt, :tag do |t, args|
-    require "ruby_wasm/build_system/downloader"
+    require "ruby_wasm/build/downloader"
 
     release =
       if args[:tag]

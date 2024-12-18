@@ -2,25 +2,29 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
+    groups:
+      dependencies:
+        patterns: ["*"]
     schedule:
       interval: monthly
 
   - package-ecosystem: npm
-    directory: /packages/npm-packages/ruby-head-wasm-emscripten
+    directory: /
+    groups:
+      dependencies:
+        patterns: ["*"]
     schedule:
       interval: monthly
 
-  - package-ecosystem: npm
-    directory: /packages/npm-packages/ruby-head-wasm-wasi
+  - package-ecosystem: cargo
+    directory: /
+    groups:
+      dependencies:
+        patterns: ["*"]
     schedule:
       interval: monthly
 
-  - package-ecosystem: npm
-    directory: /packages/npm-packages/ruby-wasm-wasi
+  - package-ecosystem: gitsubmodule
+    directory: /
     schedule:
-      interval: monthly
-
-  - package-ecosystem: npm
-    directory: /packages/npm-packages/ruby-wasm-emscripten
-    schedule:
-      interval: monthly
+      interval: daily

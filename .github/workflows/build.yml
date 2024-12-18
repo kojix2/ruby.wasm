@@ -2,7 +2,10 @@ name: Build ruby.wasm
 on:
   push:
     branches: [main]
-    tags:
+    tags: ["*"]
+    paths-ignore:
+      - "*.md"
+      - "docs/**"
   pull_request:
   workflow_call:
     inputs:
@@ -23,12 +26,18 @@ jobs:
     runs-on: ubuntu-20.04
     if: ${{ github.event_name == 'pull_request' }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "head"
+          bundler-cache: true
+      - run: ./bin/setup
+      - run: bundle exec rake check:type
       - run: sudo apt-get install clang-format
-      - run: ./tools/clang-format-diff.sh
-      - run: rake check:bindgen
+      - run: ./bin/clang-format-diff.sh
+      - run: bundle exec rake check:bindgen
       - run: git diff --exit-code
 
   build-builder-image:
@@ -36,158 +45,142 @@ jobs:
       fail-fast: false
       matrix:
         entry:
-          - { tag: wasm32-unknown-wasi }
-          - { tag: wasm32-unknown-emscripten }
+          - { target: wasm32-unknown-wasip1 }
+          - { target: wasm32-unknown-emscripten }
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3.0.11
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
-      - uses: docker/setup-buildx-action@v2
-      - uses: docker/login-action@v2
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           registry: ghcr.io
-      - name: Build
-        uses: docker/build-push-action@v3
+      - uses: docker/metadata-action@v5
+        id: meta
         with:
-          context: builders/${{ matrix.entry.tag }}
-          outputs: type=oci,dest=/tmp/image.tar
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new
-      - name: Upload image artifact
-        uses: actions/upload-artifact@v3
+          images: ghcr.io/${{ github.repository_owner }}/ruby.wasm/builder/${{ matrix.entry.target }}
+      - uses: docker/build-push-action@v5
         with:
-          name: ruby.wasm-builder-${{ matrix.entry.tag }}
-          path: /tmp/image.tar
-      - name: Push
-        uses: docker/build-push-action@v3
-        with:
-          context: builders/${{ matrix.entry.tag }}
-          push: ${{ github.ref == 'refs/heads/main' }}
-          tags: ghcr.io/${{ github.repository_owner }}/ruby.wasm-builder:${{ matrix.entry.tag }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new
+          context: builders/${{ matrix.entry.target }}
+          push: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/tags/*' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      # https://github.com/docker/build-push-action/issues/252#issuecomment-744400434
-      - run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+  build-rake-task-matrix:
+    runs-on: ubuntu-20.04
+    outputs:
+      entries: ${{ steps.set-matrix.outputs.entries }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "head"
+          bundler-cache: true
+      - run: ./bin/setup
+      - run: rake ci:pin_build_manifest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-manifest
+          path: build_manifest.json
+      - name: Set matrix
+        id: set-matrix
+        run: |
+          rake ci:rake_task_matrix
+          echo "entries=$(cat ci_matrix.json)" >> $GITHUB_OUTPUT
 
   rake-tasks:
     strategy:
       fail-fast: false
       matrix:
-        entry:
-          - task: "build:head-wasm32-unknown-emscripten-full"
-            artifact: "rubies/ruby-head-wasm32-unknown-emscripten-full.tar.gz"
-            artifact_name: "ruby-head-wasm32-unknown-emscripten-full"
-            builder: "wasm32-unknown-emscripten"
-          - task: "build:head-wasm32-unknown-emscripten-minimal"
-            artifact: "rubies/ruby-head-wasm32-unknown-emscripten-minimal.tar.gz"
-            artifact_name: "ruby-head-wasm32-unknown-emscripten-minimal"
-            builder: "wasm32-unknown-emscripten"
-          - task: "build:head-wasm32-unknown-wasi-full"
-            artifact: "rubies/ruby-head-wasm32-unknown-wasi-full.tar.gz"
-            artifact_name: "ruby-head-wasm32-unknown-wasi-full"
-            builder: "wasm32-unknown-wasi"
-          - task: "build:head-wasm32-unknown-wasi-full-debug"
-            artifact: "rubies/ruby-head-wasm32-unknown-wasi-full-debug.tar.gz"
-            artifact_name: "ruby-head-wasm32-unknown-wasi-full-debug"
-            builder: "wasm32-unknown-wasi"
-          - task: "build:head-wasm32-unknown-wasi-full-js"
-            artifact: "rubies/ruby-head-wasm32-unknown-wasi-full-js.tar.gz"
-            artifact_name: "ruby-head-wasm32-unknown-wasi-full-js"
-            builder: "wasm32-unknown-wasi"
-          - task: "build:head-wasm32-unknown-wasi-full-js-debug"
-            artifact: "rubies/ruby-head-wasm32-unknown-wasi-full-js-debug.tar.gz"
-            artifact_name: "ruby-head-wasm32-unknown-wasi-full-js-debug"
-            builder: "wasm32-unknown-wasi"
-          - task: "build:head-wasm32-unknown-wasi-minimal"
-            artifact: "rubies/ruby-head-wasm32-unknown-wasi-minimal.tar.gz"
-            artifact_name: "ruby-head-wasm32-unknown-wasi-minimal"
-            builder: "wasm32-unknown-wasi"
-          - task: "build:head-wasm32-unknown-wasi-minimal-debug"
-            artifact: "rubies/ruby-head-wasm32-unknown-wasi-minimal-debug.tar.gz"
-            artifact_name: "ruby-head-wasm32-unknown-wasi-minimal-debug"
-            builder: "wasm32-unknown-wasi"
-          - task: "build:head-wasm32-unknown-wasi-minimal-js"
-            artifact: "rubies/ruby-head-wasm32-unknown-wasi-minimal-js.tar.gz"
-            artifact_name: "ruby-head-wasm32-unknown-wasi-minimal-js"
-            builder: "wasm32-unknown-wasi"
-          - task: "build:head-wasm32-unknown-wasi-minimal-js-debug"
-            artifact: "rubies/ruby-head-wasm32-unknown-wasi-minimal-js-debug.tar.gz"
-            artifact_name: "ruby-head-wasm32-unknown-wasi-minimal-js-debug"
-            builder: "wasm32-unknown-wasi"
-
-          - task: "npm:ruby-head-wasm-emscripten"
-            prerelease: "npm:configure_prerelease"
-            artifact: "packages/npm-packages/ruby-head-wasm-emscripten/ruby-head-wasm-emscripten-*.tgz"
-            artifact_name: "npm-ruby-head-wasm-emscripten"
-            builder: "wasm32-unknown-emscripten"
-          - task: "npm:ruby-head-wasm-wasi"
-            test: "npm:ruby-head-wasm-wasi-check"
-            prerelease: "npm:configure_prerelease"
-            artifact: "packages/npm-packages/ruby-head-wasm-wasi/ruby-head-wasm-wasi-*.tgz"
-            artifact_name: "npm-ruby-head-wasm-wasi"
-            builder: "wasm32-unknown-wasi"
-
-          - task: "wapm:ruby-build"
-            artifact: "packages/wapm-packages/ruby/dist"
-            artifact_name: "wapm-ruby"
-            builder: "wasm32-unknown-wasi"
-          - task: "wapm:irb-build"
-            artifact: "packages/wapm-packages/irb/dist"
-            artifact_name: "wapm-irb"
-            builder: "wasm32-unknown-wasi"
-
-    needs: [build-builder-image]
+        entry: ${{ fromJson(needs.build-rake-task-matrix.outputs.entries) }}
+    needs: [build-rake-task-matrix]
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
-      - name: Fetch builder image
-        uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
         with:
-          name: ruby.wasm-builder-${{ matrix.entry.builder }}
-      - name: Load builder image
-        id: load-image
+          submodules: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-manifest
+      - uses: actions/cache@v4.1.2
+        if: ${{ matrix.entry.rubies_cache_key != null }}
+        with:
+          path: ./rubies
+          key: ${{ matrix.entry.rubies_cache_key }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v5
+        id: builder-image
+        env:
+          DOCKER_BUILD_NO_SUMMARY: true
+        with:
+          context: builders/${{ matrix.entry.builder }}
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Setup builder container
         run: |
-          docker load --input image.tar | tee image-info.txt
-          echo "BUILDER_IMAGE_ID=$(cut -d ':' -f 3 image-info.txt)" >> $GITHUB_ENV
+          docker run -dit -v "$GITHUB_WORKSPACE:/home/me/build" -w /home/me/build \
+            -e "ENABLE_GITHUB_ACTIONS_MARKUP=true" \
+            -e "RUBYWASM_UID=$(id -u)" -e "RUBYWASM_GID=$(id -g)" \
+            -e "GNUMAKEFLAGS=-j$((1 + $(nproc --all)))" \
+            --name builder \
+            ${{ steps.builder-image.outputs.imageid }} /bin/sh
+          echo 'docker exec -u me builder "$@"' > ./build-exec
+          chmod +x ./build-exec
+          # wait for docker exec to be ready
+          timeout 10 bash -c 'until ./build-exec bundle config set --local without check; do sleep 1; done'
+      - run: ./build-exec bundle config set --local without check
+      - run: ./build-exec ./bin/setup
+      - run: ./build-exec bundle exec rake compile
       - name: Pre-release configuration
-        run: rake ${{ matrix.entry.prerelease }}[${{ inputs.prerel_name }}]
+        run: ./build-exec bundle exec rake ${{ matrix.entry.prerelease }}[${{ inputs.prerel_name }}]
         if: ${{ inputs.prerel_name != '' && matrix.entry.prerelease != '' }}
       - name: rake ${{ matrix.entry.task }}
-        run: docker run -v "$GITHUB_WORKSPACE:/home/me/build" -w /home/me/build -e "RUBYWASM_UID=$(id -u)" -e "RUBYWASM_GID=$(id -g)" -e "GNUMAKEFLAGS=-j$((1 + $(nproc --all)))" sha256:$BUILDER_IMAGE_ID rake ${{ matrix.entry.task }}
-      - name: rake ${{ matrix.entry.test }}
-        run: rake ${{ matrix.entry.test }}
-        if: ${{ matrix.entry.test != '' }}
-      - uses: actions/upload-artifact@v3
+        run: ./build-exec rake --verbose ${{ matrix.entry.task }}
+      - uses: actions/upload-artifact@v4
         if: ${{ matrix.entry.artifact }}
         with:
           name: ${{ matrix.entry.artifact_name }}
           path: ${{ matrix.entry.artifact }}
+      - uses: ruby/setup-ruby@v1
+        if: ${{ matrix.entry.test != '' }}
+        with:
+          ruby-version: "head"
+          bundler-cache: false
+      - name: rake ${{ matrix.entry.test }}
+        run: |
+          bundle install --with=check --without=development
+          rake ${{ matrix.entry.test }}
+        if: ${{ matrix.entry.test != '' }}
 
   release-artifacts:
     needs: [rake-tasks]
     runs-on: ubuntu-20.04
     if: ${{ startsWith(github.ref, 'refs/tags/') || inputs.publish }}
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-manifest
+      - uses: actions/download-artifact@v4
         with:
           path: release
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 16
           registry-url: https://registry.npmjs.org/
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "head"
+          bundler-cache: true
+      - run: ./bin/setup
       - run: echo "PREREL_NAME=${{ inputs.prerel_name }}" >> $GITHUB_ENV
-      - run: rake "publish[${PREREL_NAME:-$GITHUB_REF_NAME}]"
+      - run: bundle exec rake "ci:publish[${PREREL_NAME:-$GITHUB_REF_NAME}]"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}

@@ -1,0 +1,53 @@
+module RubyWasm
+  class CLI
+    type cli_options = {
+      print_ruby_cache_key: bool,
+      save_temps: bool,
+      output: String,
+
+      optimize: bool,
+      remake: bool,
+      reconfigure: bool,
+      clean: bool,
+
+      ruby_version: String,
+      target_triplet: String,
+      profile: String,
+      stdlib: bool,
+      without_stdlib_components: Array[String],
+      disable_gems: bool,
+      gemfile: String?,
+      patches: Array[String],
+      format: String,
+      dest_dir: String,
+    }
+
+    DEFAULT_RUBIES_DIR: string
+
+    @stdout: IO
+    @stderr: IO
+
+    def initialize: (stdout: IO, stderr: IO) -> void
+
+    def build: (Array[String] args) -> void
+    def pack: (Array[String] args) -> void
+
+    private
+
+    def build_config: (cli_options options) -> Packager::build_config
+    def compute_build_source: (cli_options options) -> [Packager::build_source, String?]
+    def self.build_source_aliases: (string root) -> Hash[string, Packager::build_source]
+    def self.bundled_patches_path: () -> string
+    def root: () -> string
+
+    def derive_packager: (cli_options options) -> Packager
+    def do_print_ruby_cache_key: (Packager) -> void
+    def do_build: (BuildExecutor, string tmpdir, Packager, cli_options options) -> void
+
+    def require_extension: () -> void
+  end
+
+  self.@logger: Logger?
+  def self.logger: () -> Logger
+  attr_accessor self.log_level: Symbol
+end

@@ -1,11 +1,27 @@
 {
-  "name": "ruby-wasm-wasi",
-  "version": "0.0.0",
+  "name": "@ruby/wasm-wasi",
+  "version": "2.7.0",
   "description": "WebAssembly port of CRuby with WASI",
-  "main": "./dist/index.cjs.js",
-  "umd:main": "./dist/index.umd.js",
-  "module": "./dist/index.esm.js",
-  "typings": "./dist/index.d.ts",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "browser": "./dist/index.umd.js",
+  "typings": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "browser": "./dist/esm/index.js",
+      "umd": "./dist/umd/index.js",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/esm/browser.d.ts"
+    },
+    "./dist/*": {
+      "browser": "./dist/esm/*.js",
+      "umd": "./dist/umd/*.js",
+      "import": "./dist/esm/*.js",
+      "require": "./dist/cjs/*.js",
+      "types": "./dist/esm/*.d.ts"
+    }
+  },
   "files": [
     "dist",
     "README.md"
@@ -23,28 +39,29 @@
   ],
   "license": "MIT",
   "scripts": {
-    "test": "npm run test:unit && npm run test:jest",
-    "test:jest": "NODE_OPTIONS=\"--experimental-wasi-unstable-preview1\" jest --coverage",
+    "test:run": "npm run test:unit && npm run test:vitest -- --run && npm run test:e2e",
+    "test:vitest": "vitest ./test/",
     "test:unit": "./tools/run-test-unit.mjs",
+    "test:e2e": "playwright install && npm run test:e2e:examples && npm run test:e2e:integrations",
+    "test:e2e:examples": "playwright test -c test-e2e/playwright.examples.config.ts",
+    "test:e2e:integrations": "playwright test -c test-e2e/playwright.integrations.config.ts",
+    "serve:example": "BUNDLE_GEMFILE=../../../Gemfile bundle exec ruby -run -e httpd ./example -p 8085",
     "format": "prettier --write .",
-    "build": "rollup -c rollup.config.mjs && tsc --build"
+    "build:static": "./tools/pack-bindgen-src.rb ./dist",
+    "build:rollup": "rollup -c rollup.config.mjs",
+    "build:tsc": "tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json",
+    "build": "npm run build:rollup && npm run build:tsc && npm run build:static && ./tools/post-build.sh ./dist"
   },
   "devDependencies": {
-    "@babel/core": "^7.19.3",
-    "@babel/preset-env": "^7.19.3",
-    "@babel/preset-typescript": "^7.18.6",
-    "@rollup/plugin-node-resolve": "^15.0.0",
-    "@rollup/plugin-typescript": "^9.0.1",
-    "@types/jest": "^29.1.2",
-    "@wasmer/wasi": "^0.12.0",
-    "@wasmer/wasmfs": "^0.12.0",
-    "babel-jest": "^29.1.2",
-    "jest": "^29.1.2",
-    "prettier": "^2.5.1",
-    "rollup": "^3.2.2",
-    "typescript": "^4.5.4"
+    "@bytecodealliance/jco": "1.8.1",
+    "@rollup/plugin-typescript": "^12.1.1",
+    "@types/node": "22.10.1",
+    "prettier": "^3.4.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.6"
   },
   "dependencies": {
-    "tslib": "^2.3.1"
+    "@bjorn3/browser_wasi_shim": "^0.3.0",
+    "tslib": "^2.8.1"
   }
 }

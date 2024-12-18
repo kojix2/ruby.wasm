@@ -1,3 +1,5 @@
 !.gitkeep
-/src/index.js
 /coverage
+/playwright-report
+/test-results
+*.tgz

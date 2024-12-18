@@ -1,18 +1,41 @@
 {
-  "name": "ruby-head-wasm-wasi",
-  "version": "0.5.0",
+  "name": "@ruby/head-wasm-wasi",
+  "version": "2.7.0",
   "description": "Ruby head built on WASI",
-  "main": "./dist/index.cjs.js",
-  "umd:main": "./dist/index.umd.js",
-  "module": "./dist/index.esm.js",
-  "typings": "./dist/index.d.ts",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "exports": {
+    ".": {
+      "browser": "./dist/esm/index.js",
+      "umd": "./dist/umd/index.js",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    },
+    "./dist/*": {
+      "browser": "./dist/esm/*.js",
+      "umd": "./dist/umd/*.js",
+      "import": "./dist/esm/*.js",
+      "require": "./dist/cjs/*.js"
+    },
+    "./*.wasm": {
+      "browser": "./*.wasm",
+      "umd": "./*.wasm",
+      "import": "./*.wasm",
+      "require": "./*.wasm"
+    }
+  },
   "files": [
     "dist",
     "README.md"
   ],
   "scripts": {
-    "test": "cd ../ruby-wasm-wasi && npm test",
-    "build": "rollup -c rollup.config.mjs"
+    "test": "RUBY_NPM_PACKAGE_ROOT=../ruby-head-wasm-wasi npm -C ../ruby-wasm-wasi run test:run",
+    "build:deps": "cd ../ruby-wasm-wasi && npm run build",
+    "build:static:files": "../ruby-wasm-wasi/tools/pack-static-files.sh ./dist",
+    "build:static:compat": "../ruby-wasm-wasi/tools/pack-compat-shim.mjs --dist=./dist --pkg=ruby-head-wasm-wasi",
+    "build:static": "npm run build:static:files && npm run build:static:compat",
+    "build:rollup": "rollup -c rollup.config.mjs",
+    "build": "npm run build:deps && npm run build:static && npm run build:rollup && ../ruby-wasm-wasi/tools/post-build.sh ./dist"
   },
   "repository": "https://github.com/ruby/ruby.wasm",
   "homepage": "https://github.com/ruby/ruby.wasm/tree/main/packages/npm-packages/ruby-head-wasm-wasi",
@@ -26,8 +49,7 @@
     "ruby"
   ],
   "license": "MIT",
-  "devDependencies": {
-    "rollup": "^3.2.2",
-    "@rollup/plugin-json": "^5.0.0"
+  "dependencies": {
+    "@ruby/wasm-wasi": "^2.0.0"
   }
 }

@@ -1,0 +1,134 @@
+
+class RubyWasm::Packager
+  type build_source_github = {
+    type: "github",
+    repo: String,
+    rev: String,
+  }
+  type build_source_tarball = {
+    type: "tarball",
+    url: String,
+  }
+  type build_source_local = {
+    type: "local",
+    path: String,
+  }
+  type build_source = (build_source_github | build_source_tarball | build_source_local) & {
+    name: string,
+    patches: Array[String],
+  }
+
+  type build_config = {
+    target: String,
+    src: RubyWasm::Packager::build_source,
+    default_exts: String,
+    suffix: String,
+    gem_home: String?,
+  }
+
+  type bytes = String
+
+  @definition: untyped
+  @config: build_config
+  @features: RubyWasm::FeatureSet
+
+  def initialize: (string root, build_config?, untyped? definition, features: RubyWasm::FeatureSet) -> void
+
+  def package: (RubyWasm::BuildExecutor, string dest_dir, untyped options) -> bytes
+
+  @ruby_core_build: RubyWasm::Packager::Core?
+  def ruby_core_build: () -> RubyWasm::Packager::Core
+
+  EXCLUDED_GEMS: Array[string]
+
+  def specs: () -> Array[untyped]
+  def features: () -> RubyWasm::FeatureSet
+
+  def root: () -> string
+
+  ALL_DEFAULT_EXTS: String
+
+  def build_options: () -> Hash[Symbol, untyped]
+  def full_build_options: () -> Hash[Symbol, untyped]
+
+  class Core
+    include RubyWasm::_Cacheable
+
+    @packager: RubyWasm::Packager
+    def initialize: (RubyWasm::Packager) -> void
+    def build: (RubyWasm::BuildExecutor, untyped options) -> String
+    def build_gem_exts: (RubyWasm::BuildExecutor, string gem_home) -> void
+    def link_gem_exts: (RubyWasm::BuildExecutor, string ruby_root, string gem_home, bytes module_bytes) -> bytes
+
+    extend Forwardable
+
+    def artifact: () -> string
+
+    private
+
+    @build_strategy: BuildStrategy?
+    def build_strategy: () -> BuildStrategy
+
+    class BuildStrategy
+      @packager: RubyWasm::Packager
+      def initialize: (RubyWasm::Packager) -> void
+      def build: (RubyWasm::BuildExecutor, untyped options) -> String
+      def specs_with_extensions: () -> Array[[untyped, Array[string]]]
+      def build_gem_exts: (RubyWasm::BuildExecutor, string gem_home) -> void
+      def link_gem_exts: (RubyWasm::BuildExecutor, string ruby_root, string gem_home, bytes module_bytes) -> bytes
+      def wasi_exec_model: () -> String
+      def with_unbundled_env: () { () -> void } -> void
+    end
+
+    class DynamicLinking < RubyWasm::Packager::Core::BuildStrategy
+      @build: RubyWasm::Build
+      def derive_build: () -> RubyWasm::Build
+      def name: () -> string
+
+      private def _build_gem_exts: (RubyWasm::BuildExecutor, RubyWasm::Build, string gem_home) -> void
+      private def _link_gem_exts: (RubyWasm::BuildExecutor, RubyWasm::Build, string ruby_root, string gem_home, bytes module_bytes) -> bytes
+    end
+
+    class StaticLinking < RubyWasm::Packager::Core::BuildStrategy
+      @build: RubyWasm::Build
+      def derive_build: () -> RubyWasm::Build
+      @user_exts: Array[RubyWasm::CrossRubyExtProduct]?
+      def user_exts: (RubyWasm::Build) -> Array[RubyWasm::CrossRubyExtProduct]
+
+      def name: () -> string
+    end
+  end
+
+  class FileSystem
+    @dest_dir: string
+    @packager: RubyWasm::Packager
+    @ruby_root: string
+
+    def initialize: (string dest_dir, RubyWasm::Packager) -> void
+    def package_ruby_root: (String tarball, RubyWasm::BuildExecutor) -> void
+    def remove_stdlib: (RubyWasm::BuildExecutor) -> void
+    def remove_stdlib_component: (RubyWasm::BuildExecutor, string) -> void
+    def package_gems: () -> void
+
+    def setup_rb_content: () -> String
+
+    def remove_non_runtime_files: (RubyWasm::BuildExecutor) -> void
+
+    def bundle_dir: () -> String
+    def ruby_root: () -> string
+
+    private
+
+    def each_gem_content_path: () { (String, String) -> void } -> void
+    def each_gem_require_path: () { (String, String) -> void } -> void
+    def each_gem_extension_path: () { (String, String) -> void } -> void
+
+    def bundle_relative_path: () -> String
+    def ruby_version: () -> String
+    def rubyarchdir: () -> String
+  end
+
+  module ComponentAdapter
+    def self.wasi_snapshot_preview1: (String exec_model) -> String
+  end
+end

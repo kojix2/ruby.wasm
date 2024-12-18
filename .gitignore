@@ -3,10 +3,19 @@ dist
 /build
 /rubies
 /release
+/tmp
+/target
 /Gemfile.lock
-wapm_packages
+/lib/ruby_wasm/ruby_wasm.so
+/lib/ruby_wasm/ruby_wasm.bundle
 
 .cache
 compile_commands.json
 
 html
+
+build_manifest.json
+ci_matrix.json
+
+vendor/bundle
+/pkg

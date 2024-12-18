@@ -6,9 +6,11 @@ This document describes development setup and pointers for diving into this proj
 ## Install dependencies
 
 ```console
-$ git clone https://github.com/ruby/ruby.wasm
+$ git clone https://github.com/ruby/ruby.wasm --recursive
 $ cd ruby.wasm
-$ bundle install
+$ ./bin/setup
+# Compile extension library
+$ bundle exec rake compile
 $ rake --tasks
 ```
 
@@ -19,12 +21,12 @@ $ rake --tasks
 $ rake build:download_prebuilt
 
 # Build Ruby (if you need to build Ruby by yourself)
-$ rake build:head-wasm32-unknown-wasi-full-js-debug
+$ rake build:head-wasm32-unknown-wasip1-full
 
 # Build npm package
-$ rake npm:ruby-head-wasm-wasi
+$ rake npm:ruby-head-wasm-wasip2:build
 # Test npm package
-$ rake npm:ruby-head-wasm-wasi-check
+$ rake npm:ruby-head-wasm-wasip2:check
 ```
 
 If you need to re-build Ruby, please clean `./rubies` directory, and run `rake npm:ruby-head-wasm-wasi` again.
@@ -46,15 +48,15 @@ To select a build profile, see [profiles section in README](https://github.com/r
 
 ```console
 # Build only a specific combination of ruby version, profile, and target
-$ rake build:head-wasm32-unknown-wasi-full-js
+$ rake build:head-wasm32-unknown-wasip1-full
 # Clean up the build directory
-$ rake build:head-wasm32-unknown-wasi-full-js:clean
+$ rake build:head-wasm32-unknown-wasip1-full:clean
 # Force to re-execute "make install"
-$ rake build:head-wasm32-unknown-wasi-full-js:remake
+$ rake build:head-wasm32-unknown-wasip1-full:remake
 
 # Output is in the `rubies` directory
-$ tree -L 3 rubies/head-wasm32-unknown-wasi-full-js
-rubies/head-wasm32-unknown-wasi-full-js/
+$ tree -L 3 rubies/head-wasm32-unknown-wasip1-full
+rubies/head-wasm32-unknown-wasip1-full/
 ├── usr
 │   └── local
 │       ├── bin
@@ -70,9 +72,9 @@ Please follow the official instructions to install.
 
 ```console
 # Build only a specific combination of ruby version, profile, and target
-$ rake build:head-wasm32-unknown-emscripten-full-js
+$ rake build:head-wasm32-unknown-emscripten-full
 # Output is in the `rubies` directory
-$ tree -L 3 rubies/head-wasm32-unknown-emscripten-full-js
+$ tree -L 3 rubies/head-wasm32-unknown-emscripten-full
 rubies/head-wasm32-unknown-emscripten-full
 └── usr
     └── local
@@ -97,3 +99,35 @@ To re-generate them, you need to install the Rust compiler `rustc` and Cargo, th
 The rake task installs [`wit-bindgen`](https://github.com/bytecodealliance/wit-bindgen) on demand, then just execute it for each generated code
 
 If you see `missing executable: cargo`, please make sure `cargo` is installed correctly in your `PATH`.
+
+## Release Process
+
+To bump up npm package version, please follow the below steps:
+
+```
+$ rake 'bump_version[0.6.0]'
+$ git commit -m"Bump version to 0.6.0"
+$ git tag 0.6.0
+$ git push origin 0.6.0
+# After GitHub Actions "Build gems" is done
+# https://github.com/ruby/ruby.wasm/actions/workflows/build-gems.yml
+$ gh run download <run-id>
+$ for pkg in cross-gem/pkg/ruby_wasm-*; do gem push $pkg; done
+$ gem build && gem push ruby_wasm-*.gem && rm ruby_wasm-*.gem
+$ (cd packages/gems/js/ && gem build && gem push js-*.gem && rm js-*.gem)
+$ rake bump_dev_version
+```
+
+## Release Channels
+
+Each npm package in this project provides two release channels: `latest` and `next`. The `latest` channel is for stable releases, and `next` channel is for pre-release.
+
+e.g. For [`@ruby/wasm-wasi`](https://www.npmjs.com/package/@ruby/wasm-wasi)
+
+```console
+$ npm install --save @ruby/wasm-wasi@latest
+# or if you want the nightly snapshot
+$ npm install --save @ruby/wasm-wasi@next
+# or you can specify the exact snapshot version
+$ npm install --save @ruby/wasm-wasi@2.7.0-2024-11-11-a
+```

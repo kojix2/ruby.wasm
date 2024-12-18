@@ -1,0 +1,44 @@
+module RubyWasmExt
+  type bytes = String
+
+  def self.preinitialize: (bytes module_bytes) -> bytes
+
+  class WasiVfs
+    def initialize: () -> void
+
+    def self.run_cli: (Array[String] args) -> void
+
+    def map_dir: (String guest_path, String host_path) -> void
+
+    def pack: (bytes module_bytes) -> bytes
+  end
+
+  class ComponentLink
+    def initialize: () -> void
+    def library: (String name, bytes module, bool dl_openable) -> void
+    def adapter: (String name, bytes module) -> void
+    def validate: (bool) -> void
+    def stack_size: (Integer) -> void
+    def stub_missing_functions: (bool) -> void
+    def use_built_in_libdl: (bool) -> void
+    def encode: () -> bytes
+  end
+
+  class ComponentEncode
+    def initialize: () -> void
+    def validate: (bool) -> void
+    def adapter: (String name, bytes module) -> void
+    def module: (bytes module) -> void
+    def realloc_via_memory_grow: (bool) -> void
+    def import_name_map: (Hash[String, String] map) -> void
+    def encode: () -> bytes
+  end
+
+  class WasiVirt
+    def initialize: () -> void
+    def allow_all: () -> void
+    def map_dir: (String guest_path, String host_path) -> void
+    def finish: () -> bytes
+    def compose: (bytes component_bytes) -> bytes
+  end
+end

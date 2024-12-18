@@ -1,0 +1,18 @@
+CLEANFILES += link.filelist
+link.filelist:
+	echo $(foreach obj,$(OBJS),$(abspath $(obj))) > $@
+	echo $(EXTRA_OBJS) >> $@
+	echo -mexec-model=reactor >> $@
+
+js.a: link.filelist
+
+js-core.o: $(srcdir)/bindgen/legacy/rb-js-abi-host.h
+
+bindgen/legacy/%.o: $(srcdir)/bindgen/legacy/%.c
+	@mkdir -p "$(@D)"
+	$(CC) -c -I$(srcdir)/bindgen/legacy -o $@ $<
+
+bindgen/ext.o: $(srcdir)/bindgen/ext.c
+	@mkdir -p "$(@D)"
+	$(ECHO) compiling $(<)
+	$(Q) $(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) $(COUTFLAG)$@ -c $(CSRCFLAG)$<

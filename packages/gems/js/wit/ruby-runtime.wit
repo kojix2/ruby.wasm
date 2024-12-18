@@ -1,0 +1,39 @@
+package ruby:js;
+
+interface ruby-runtime {
+    use js-runtime.{js-abi-value};
+
+    resource rb-abi-value {}
+
+    type rb-errno = s32;
+    type rb-id = u32;
+
+    ruby-show-version: func();
+    ruby-init: func(args: list<string>);
+    ruby-init-loadpath: func();
+    rb-eval-string-protect: func(str: string) -> tuple<rb-abi-value, s32>;
+    rb-funcallv-protect: func(recv: borrow<rb-abi-value>, mid: rb-id, args: list<borrow<rb-abi-value>>) -> tuple<rb-abi-value, s32>;
+    rb-intern: func(name: string) -> rb-id;
+    rb-errinfo: func() -> rb-abi-value;
+    rb-clear-errinfo: func();
+
+    rstring-ptr: func(value: borrow<rb-abi-value>) -> string;
+
+    rb-vm-bugreport: func();
+
+    rb-gc-enable: func() -> bool;
+    rb-gc-disable: func() -> bool;
+
+    rb-set-should-prohibit-rewind: func(new-value: bool) -> bool;
+    // XXX: Do we really need them?
+    // wrap-js-value: func(value: js-abi-value) -> rb-abi-value;
+    // to-js-value: func(value: borrow<rb-abi-value>) -> js-abi-value;
+
+    // Transfer the value from Ruby to JS
+    //
+    // 1. Ruby side registers the value in the stage
+    // 2. Ruby side calls JS's `import-rb-value-from-rb()`
+    // 3. `import-rb-value-from-rb()` calls `export-rb-value-to-js()`
+    // 4. `export-rb-value-to-js()` returns the staged value
+    export-rb-value-to-js: func() -> rb-abi-value;
+}

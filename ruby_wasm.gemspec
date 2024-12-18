@@ -8,8 +8,8 @@ Gem::Specification.new do |spec|
   spec.authors = ["Yuta Saito"]
   spec.email = ["kateinoigakukun@gmail.com"]
 
-  spec.summary = "Tools for building ruby.wasm"
-  spec.description = "Tools for building ruby.wasm"
+  spec.summary = %q{Ruby to WebAssembly toolkit}
+  spec.description = %q{Ruby to WebAssembly toolkit. This gem takes Ruby code and Gemfile, and packages them with Ruby runtime into a WebAssembly binary.}
   spec.homepage = "https://github.com/ruby/ruby.wasm"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 2.6.0"
@@ -21,10 +21,12 @@ Gem::Specification.new do |spec|
   # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
   spec.files = Dir.chdir(__dir__) do
     `git ls-files -z`.split("\x0").reject do |f|
-      (f == __FILE__) || f.match(%r{\A(?:(?:bin|test|spec|features)/|\.(?:git|travis|circleci)|appveyor)})
+      (f == __FILE__) || f.match(%r{\A(?:(?:bin|test|spec|features)/|\.(?:git|travis|circleci)|appveyor)}) ||
+        f.match(%r{\A(?:packages|builders|vendor)/})
     end
   end
   spec.bindir = "exe"
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
+  spec.extensions = ["ext/ruby_wasm/Cargo.toml"]
 end

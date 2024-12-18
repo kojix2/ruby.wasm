@@ -1,0 +1,21 @@
+resource rb-abi-value
+type rb-errno = s32
+type rb-id = u32
+
+ruby-show-version: func()
+ruby-init: func(args: list<string>)
+ruby-init-loadpath: func()
+rb-eval-string-protect: func(str: string) -> tuple<rb-abi-value, s32>
+rb-funcallv-protect: func(recv: rb-abi-value, mid: rb-id, args: list<rb-abi-value>) -> tuple<rb-abi-value, s32>
+rb-intern: func(name: string) -> rb-id
+rb-errinfo: func() -> rb-abi-value
+rb-clear-errinfo: func()
+
+rstring-ptr: func(value: rb-abi-value) -> string
+
+rb-vm-bugreport: func()
+
+rb-gc-enable: func() -> bool
+rb-gc-disable: func() -> bool
+
+rb-set-should-prohibit-rewind: func(new-value: bool) -> bool

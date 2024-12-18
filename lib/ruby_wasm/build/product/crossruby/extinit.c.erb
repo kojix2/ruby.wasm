@@ -1,0 +1,32 @@
+require "erb"
+require "optparse"
+
+opts = OptionParser.new
+opts.on("--cc CC") {|cc| @cc = cc }
+opts.on("--output FILE") {|o| @o = o }
+
+opts.parse!(ARGV)
+if @cc.nil? || @o.nil?
+  puts opts.help
+  exit 1
+end
+
+exts = ARGV
+
+c_src = ERB.new(DATA.read).result
+IO.popen([@cc, "-c", "-xc", "-", "-o", @o], "w") {|f| f << c_src }
+exit $?.exitstatus
+
+__END__
+#define init(func, name) { \
+    extern void func(void);	\
+    ruby_init_ext(name".so", func); \
+}
+
+void ruby_init_ext(const char *name, void (*init)(void));
+
+void Init_extra_exts(void) {
+<% exts.each do |ext| %>
+  init(<%= "Init_#{File.basename ext}" %>, "<%= ext %>");
+<% end %>
+}

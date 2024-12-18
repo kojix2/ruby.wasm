@@ -9,40 +9,52 @@ It enables running Ruby application on browsers, WASI compatible WebAssembly run
 
 Try ruby.wasm in [TryRuby](https://try.ruby-lang.org/playground#code=puts+RUBY_DESCRIPTION&engine=cruby-3.2.0dev) in your browser.
 
-## Quick Example: Ruby on browser
+## Quick Links
+
+- [Cheat Sheet](https://github.com/ruby/ruby.wasm/blob/main/docs/cheat_sheet.md)
+- [FAQ](https://github.com/ruby/ruby.wasm/blob/main/docs/faq.md)
+- [API Reference](https://github.com/ruby/ruby.wasm/blob/main/docs/api.md)
+- [Complete Examples](https://github.com/ruby/ruby.wasm/tree/main/packages/npm-packages/ruby-wasm-wasi/example)
+- [Community Showcase](https://github.com/ruby/ruby.wasm/wiki/Showcase)
+
+## Quick Example: Ruby on Web browser
 
 Create and save `index.html` page with the following contents:
 
 ```html
 <html>
-  <script src="https://cdn.jsdelivr.net/npm/ruby-head-wasm-wasi@0.5.0/dist/browser.script.iife.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@ruby/3.3-wasm-wasi@2.7.0/dist/browser.script.iife.js"></script>
   <script type="text/ruby">
-    puts "Hello, world!"
+    require "js"
+
+    puts RUBY_VERSION # (Printed to the Web browser console)
+    JS.global[:document].write "Hello, world!"
   </script>
 </html>
 ```
 
 ## Quick Example: How to package your Ruby application as a WASI application
 
-Dependencies: [wasi-vfs](https://github.com/kateinoigakukun/wasi-vfs), [wasmtime](https://github.com/bytecodealliance/wasmtime)
+Dependencies: [wasmtime](https://github.com/bytecodealliance/wasmtime)
 
 ```console
+$ gem install ruby_wasm
 # Download a prebuilt Ruby release
-$ curl -LO https://github.com/ruby/ruby.wasm/releases/latest/download/ruby-head-wasm32-unknown-wasi-full.tar.gz
-$ tar xfz ruby-head-wasm32-unknown-wasi-full.tar.gz
+$ curl -LO https://github.com/ruby/ruby.wasm/releases/latest/download/ruby-3.3-wasm32-unknown-wasip1-full.tar.gz
+$ tar xfz ruby-3.3-wasm32-unknown-wasip1-full.tar.gz
 
 # Extract ruby binary not to pack itself
-$ mv head-wasm32-unknown-wasi-full/usr/local/bin/ruby ruby.wasm
+$ mv ruby-3.3-wasm32-unknown-wasip1-full/usr/local/bin/ruby ruby.wasm
 
 # Put your app code
 $ mkdir src
 $ echo "puts 'Hello'" > src/my_app.rb
 
 # Pack the whole directory under /usr and your app dir
-$ wasi-vfs pack ruby.wasm --mapdir /src::./src --mapdir /usr::./head-wasm32-unknown-wasi-full/usr -o my-ruby-app.wasm
+$ rbwasm pack ruby.wasm --dir ./src::/src --dir ./ruby-3.3-wasm32-unknown-wasip1-full/usr::/usr -o my-ruby-app.wasm
 
 # Run the packed scripts
-$ wasmtime my-ruby-app.wasm -- /src/my_app.rb
+$ wasmtime my-ruby-app.wasm /src/my_app.rb
 Hello
 ```
 
@@ -60,14 +72,24 @@ See the `README.md` of each package for more detail and its usage.
   </thead>
   <tbody>
     <tr>
-      <td><a href="/packages/npm-packages/ruby-head-wasm-wasi">ruby-head-wasm-wasi</a></td>
-      <td>HEAD CRuby built on WASI with JS interop support</td>
-      <td><a href="https://badge.fury.io/js/ruby-head-wasm-wasi" rel="nofollow"><img src="https://badge.fury.io/js/ruby-head-wasm-wasi.svg" alt="npm version" style="max-width: 100%;"></a></td>
+      <td><a href="/packages/npm-packages/ruby-3.3-wasm-wasi">@ruby/3.3-wasm-wasi</a></td>
+      <td>CRuby 3.3 built on WASI with JS interop support</td>
+      <td><a href="https://www.npmjs.com/package/@ruby/3.3-wasm-wasi" rel="nofollow"><img src="https://badge.fury.io/js/@ruby%2F3.3-wasm-wasi.svg" alt="npm version" style="max-width: 100%;"></a></td>
     </tr>
     <tr>
-      <td><a href="/packages/npm-packages/ruby-head-wasm-emscripten">ruby-head-wasm-emscripten</a></td>
+      <td><a href="/packages/npm-packages/ruby-3.2-wasm-wasi">@ruby/3.2-wasm-wasi</a></td>
+      <td>CRuby 3.2 built on WASI with JS interop support</td>
+      <td><a href="https://www.npmjs.com/package/@ruby/3.2-wasm-wasi" rel="nofollow"><img src="https://badge.fury.io/js/@ruby%2F3.2-wasm-wasi.svg" alt="npm version" style="max-width: 100%;"></a></td>
+    </tr>
+    <tr>
+      <td><a href="/packages/npm-packages/ruby-head-wasm-wasi">@ruby/head-wasm-wasi</a></td>
+      <td>HEAD CRuby built on WASI with JS interop support</td>
+      <td><a href="https://www.npmjs.com/package/@ruby/head-wasm-wasi" rel="nofollow"><img src="https://badge.fury.io/js/@ruby%2Fhead-wasm-wasi.svg" alt="npm version" style="max-width: 100%;"></a></td>
+    </tr>
+    <tr>
+      <td><a href="/packages/npm-packages/ruby-head-wasm-emscripten">@ruby/head-wasm-emscripten</a></td>
       <td>HEAD CRuby built on Emscripten (not well tested)</td>
-      <td><a href="https://badge.fury.io/js/ruby-head-wasm-emscripten" rel="nofollow"><img src="https://badge.fury.io/js/ruby-head-wasm-emscripten.svg" alt="npm version" style="max-width: 100%;"></a></td>
+      <td><a href="https://www.npmjs.com/package/@ruby/head-wasm-emscripten" rel="nofollow"><img src="https://badge.fury.io/js/@ruby%2Fhead-wasm-emscripten.svg" alt="npm version" style="max-width: 100%;"></a></td>
     </tr>
   </tbody>
 </table>
@@ -88,8 +110,8 @@ A _build_ is a combination of ruby version, _profile_, and _target_.
   </thead>
   <tbody>
     <tr>
-      <td><code>wasm32-unknown-wasi</code></td>
-      <td>Targeting WASI-compatible environments (e.g. Node.js, browsers with polyfill, <a href="https://github.com/bytecodealliance/wasmtime">wasmtime</a>, and so on)</td>
+      <td><code>wasm32-unknown-wasip1</code></td>
+      <td>Targeting <a href="https://github.com/WebAssembly/WASI/tree/main/legacy/preview1">WASI Preview1</a> compatible environments <br>(e.g. Node.js, browsers with polyfill, <a href="https://github.com/bytecodealliance/wasmtime">wasmtime</a>, and so on)</td>
     </tr>
     <tr>
       <td><code>wasm32-unknown-emscripten</code></td>
@@ -116,18 +138,8 @@ A _build_ is a combination of ruby version, _profile_, and _target_.
       <td><code>full</code></td>
       <td>All standard extension libraries</td>
     </tr>
-    <tr>
-      <td><code>*-js</code></td>
-      <td>Enabled JS interoperability, only usable with npm package</td>
-    </tr>
-    <tr>
-      <td><code>*-debug</code></td>
-      <td>With DWARF info and <a href="https://webassembly.github.io/spec/core/appendix/custom.html#name-section" rel="nofollow"><code>name</code> section</a> for debugging</td>
-    </tr>
   </tbody>
 </table>
-
-Note: `*` is a wildcard that represents any other profile name except for itself, applied recursively. For example, `minimal-full-js-debug` is a valid profile.
 
 ## Notable Limitations
 

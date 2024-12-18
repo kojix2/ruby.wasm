@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+set -vx
+
+root="$(cd "$(dirname "$0")/.." && pwd)"
+
+env BUNDLE_GEMFILE="$root/Gemfile" bundle install
+
+npm ci

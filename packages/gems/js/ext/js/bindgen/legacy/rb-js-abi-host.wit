@@ -1,0 +1,47 @@
+resource js-abi-value
+
+variant js-abi-result {
+    success(js-abi-value),
+    failure(js-abi-value),
+}
+
+eval-js: func(code: string) -> js-abi-result
+is-js: func(value: js-abi-value) -> bool
+instance-of: func(value: js-abi-value, klass: js-abi-value) -> bool
+global-this: func() -> js-abi-value
+int-to-js-number: func(value: s32) -> js-abi-value
+float-to-js-number: func(value: float64) -> js-abi-value
+string-to-js-string: func(value: string) -> js-abi-value
+bool-to-js-bool: func(value: bool) -> js-abi-value
+proc-to-js-function: func(value: u32) -> js-abi-value
+rb-object-to-js-rb-value: func(raw-rb-abi-value: u32) -> js-abi-value
+
+js-value-to-string: func(value: js-abi-value) -> string
+
+variant raw-integer {
+    as-float(float64),
+    bignum(string),
+}
+
+js-value-to-integer: func(value: js-abi-value) -> raw-integer
+
+export-js-value-to-host: func(value: js-abi-value)
+import-js-value-from-host: func() -> js-abi-value
+
+js-value-typeof: func(value: js-abi-value) -> string
+
+js-value-equal: func(lhs: js-abi-value, rhs: js-abi-value) -> bool
+js-value-strictly-equal: func(lhs: js-abi-value, rhs: js-abi-value) -> bool
+
+reflect-apply: func(target: js-abi-value, this-argument: js-abi-value, arguments: list<js-abi-value>) -> js-abi-result
+reflect-construct: func(target: js-abi-value, arguments: list<js-abi-value>) -> js-abi-value
+reflect-delete-property: func(target: js-abi-value, property-key: string) -> bool
+reflect-get: func(target: js-abi-value, property-key: string) -> js-abi-result
+reflect-get-own-property-descriptor: func(target: js-abi-value, property-key: string) -> js-abi-value
+reflect-get-prototype-of: func(target: js-abi-value) -> js-abi-value
+reflect-has: func(target: js-abi-value, property-key: string) -> bool
+reflect-is-extensible: func(target: js-abi-value) -> bool
+reflect-own-keys: func(target: js-abi-value) -> list<js-abi-value>
+reflect-prevent-extensions: func(target: js-abi-value) -> bool
+reflect-set: func(target: js-abi-value, property-key: string, value: js-abi-value) -> js-abi-result
+reflect-set-prototype-of: func(target: js-abi-value, prototype: js-abi-value) -> bool

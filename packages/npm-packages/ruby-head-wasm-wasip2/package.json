@@ -1,0 +1,56 @@
+{
+  "name": "@ruby/head-wasm-wasip2",
+  "version": "2.7.0",
+  "description": "Ruby head built on WASI Preview 2",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "private": true,
+  "exports": {
+    ".": {
+      "browser": "./dist/esm/index.js",
+      "umd": "./dist/umd/index.js",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    },
+    "./dist/*": {
+      "browser": "./dist/esm/*.js",
+      "umd": "./dist/umd/*.js",
+      "import": "./dist/esm/*.js",
+      "require": "./dist/cjs/*.js"
+    },
+    "./*.wasm": {
+      "browser": "./*.wasm",
+      "umd": "./*.wasm",
+      "import": "./*.wasm",
+      "require": "./*.wasm"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "RUBY_NPM_PACKAGE_ROOT=../ruby-head-wasm-wasip2 ENABLE_COMPONENT_TESTS=1 npm -C ../ruby-wasm-wasi run test:run",
+    "build:deps": "cd ../ruby-wasm-wasi && npm run build",
+    "build:static:files": "../ruby-wasm-wasi/tools/pack-static-files.sh ./dist",
+    "build:static": "npm run build:static:files",
+    "build:rollup": "rollup -c rollup.config.mjs",
+    "build": "npm run build:deps && npm run build:static && npm run build:rollup"
+  },
+  "repository": "https://github.com/ruby/ruby.wasm",
+  "homepage": "https://github.com/ruby/ruby.wasm/tree/main/packages/npm-packages/ruby-head-wasm-wasi",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "wasi",
+    "ruby"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@ruby/wasm-wasi": "^2.0.0",
+    "@bytecodealliance/preview2-shim": "^0.17.1"
+  }
+}

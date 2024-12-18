@@ -31,6 +31,14 @@ class JS::TestObject < Test::Unit::TestCase
 
     assert_object_eql? false, JS.eval("return 24;"), JS.eval("return 42;")
     assert_object_eql? false, JS.eval("return NaN;"), JS.eval("return NaN;")
+
+    # Compare with JS::Object like object
+    assert_equal true, JS.eval("return 42;") == 42
+    assert_equal true, JS.eval("return 42;").eql?(42)
+    assert_equal false, JS.eval("return 42;") != 42
+    # Compare with non JS::Object like object
+    assert_equal false, JS.eval("return 42;") == Object.new
+    assert_equal true, JS.eval("return 42;") != Object.new
   end
 
   def assert_object_strictly_eql?(result, a, b)
@@ -64,12 +72,26 @@ class JS::TestObject < Test::Unit::TestCase
     assert_equal "undefined", JS.eval("return undefined;").to_s
   end
 
+  def test_to_s_encoding
+    assert_equal Encoding::UTF_8, JS.eval("return 'str';").to_s.encoding
+    assert_equal Encoding::UTF_8, JS.eval("return 'あいうえお';").to_s.encoding
+  end
+
   def test_inspect
     assert_equal "str", JS.eval("return 'str';").to_s
     assert_equal "24", JS.eval("return 24;").inspect
     assert_equal "true", JS.eval("return true;").inspect
-    assert_equal "null", JS.eval("return null;").inspect
-    assert_equal "undefined", JS.eval("return undefined;").inspect
+    assert_equal "null", JS::Null.inspect
+    assert_equal "undefined", JS::Undefined.inspect
+    assert_equal "[object Object]", JS.eval("return {}").inspect
+    assert_equal "[object X class]", JS.eval(<<~JS).inspect
+      class X {
+        get [Symbol.toStringTag]() {
+          return 'X class';
+        }
+      }
+      return new X();
+    JS
   end
 
   def test_to_i_from_number
@@ -146,6 +168,18 @@ class JS::TestObject < Test::Unit::TestCase
     assert_equal "1,2,3", JS.global.call(:Array, 1, 2, 3).to_s
   end
 
+  def test_call_with_undefined_method
+    assert_raise("which is a undefined and not a function") do
+      JS.global.call(:undefined_method)
+    end
+  end
+
+  def test_call_with_non_js_object
+    assert_raise("argument 2 is not a JS::Object like object") do
+      JS.global.call(:Object, Object.new)
+    end
+  end
+
   def test_call_with_stress_gc
     obj = JS.eval(<<~JS)
       return { takeArg() {} }
@@ -154,6 +188,101 @@ class JS::TestObject < Test::Unit::TestCase
     obj.call(:takeArg, "1")
     obj.call(:takeArg) {}
     GC.stress = false
+  end
+
+  def test_new_standard_built_in_object
+    assert_equal 1.2, JS.global[:Number].new(1.23).toFixed(1).to_f
+    assert_equal "hello", JS.global[:String].new("hello").to_s
+    assert_equal 3, JS.global[:Array].new(1, 2, 3).pop().to_i
+    assert_equal 2023, JS.global[:Date].new(2023, 1, 1).getFullYear().to_i
+  end
+
+  def test_new_standard_built_in_object_with_js_string
+    assert_equal "hello", JS.global[:String].new(JS.eval("return 'hello'")).to_s
+  end
+
+  def test_new_named_constructor
+    JS.eval(<<~JS)
+      globalThis.Person = function Person(first, last) {
+        this.firstName = first;
+        this.lastName = last;
+      }
+    JS
+
+    assert_equal "John", JS.global[:Person].new("John", "Doe")[:firstName].to_s
+  end
+
+  def test_new_anonymous_constructor
+    JS.eval(<<~JS)
+      globalThis.Dog = function(name, breed) {
+        this.name = name;
+        this.breed = breed;
+      }
+    JS
+
+    assert_equal "Labrador",
+                 JS.global[:Dog].new("Fido", "Labrador")[:breed].to_s
+  end
+
+  def test_new_custom_class
+    JS.eval(<<~JS)
+      globalThis.CustomClass = class CustomClass {
+        constructor(options) {
+          this.option1 = options.option1;
+          this.option2 = options.option2;
+        }
+      }
+    JS
+
+    assert_equal "hello",
+                 JS.global[:CustomClass].new(option1: "hello")[:option1].to_s
+  end
+
+  def test_new_custom_class_with_js_object
+    JS.eval(<<~JS)
+      class CustomClass {
+        constructor(options) {
+          this.option1 = options.option1;
+          this.option2 = options.option2;
+        }
+      }
+      globalThis.CustomClass = CustomClass;
+    JS
+
+    js_object = JS.eval('return { option1: "hello" }')
+    assert_equal "hello", JS.global[:CustomClass].new(js_object)[:option1].to_s
+  end
+
+  def test_new_with_block
+    ctor = JS.eval <<~JS
+      return function (a, b, c) {
+        this.ret = c(a, b);
+      }
+    JS
+    new_obj = ctor.new(1, 2) { |a, b| a.to_i + b.to_i }
+    assert_equal 3, new_obj[:ret].to_i
+
+    promise = JS.global[:Promise].new do |resolve, reject|
+      resolve.apply 42
+    end
+    value = promise.await
+    assert_equal 42, value.to_i
+
+    promise = JS.global[:Promise].new do |resolve, reject|
+      JS.global.queueMicrotask(resolve)
+    end
+    promise.await
+  end
+
+  def test_to_a
+    assert_equal [1, 2, 3], JS.eval("return [1, 2, 3];").to_a.map(&:to_i)
+    assert_equal %w[f o o], JS.eval("return 'foo';").to_a.map(&:to_s)
+
+    set = JS.eval("return new Set(['foo', 'bar', 'baz', 'foo']);").to_a
+    assert_equal %w[foo bar baz], set.map(&:to_s)
+
+    map = JS.eval("return new Map([[1, 2], [2, 4], [4, 8]]);").to_a
+    assert_equal ({ 1 => 2, 2 => 4, 4 => 8 }), map.to_h { _1.to_a.map(&:to_i) }
   end
 
   def test_method_missing
@@ -181,19 +310,87 @@ class JS::TestObject < Test::Unit::TestCase
     assert_true block_called
   end
 
+  def test_method_missing_with_?
+    object = JS.eval(<<~JS)
+      return {
+        return_true() { return true; },
+        return_false() { return false; },
+        return_object() { return {}; },
+        return_null() { return null; },
+        return_empty_string() { return ''; }
+      };
+    JS
+
+    # Normally return JS::Object when without ?
+    assert_true object.return_true == JS::True
+    assert_true object.return_false == JS::False
+
+    # Return Ruby boolean value when with ?
+    assert_true object.return_true?
+    assert_false object.return_false?
+
+    # Return Ruby true when the return value is JavaScript true
+    assert_true object.return_object?
+
+    # Return Ruby false when the return value is JavaScript false
+    assert_false object.return_null?
+    assert_false object.return_empty_string?
+  end
+
+  def test_method_missing_with_property
+    object = JS.eval(<<~JS)
+      return { property: 42 };
+    JS
+
+    e = assert_raise(TypeError) { object.property }
+    assert_equal "`property` is not a function. To reference a property, use `[:property]` syntax instead.",
+                 e.message
+
+    e = assert_raise(TypeError) { object.property? }
+    assert_equal "`property` is not a function. To reference a property, use `[:property]` syntax instead.",
+                 e.message
+  end
+
   def test_method_missing_with_undefined_method
     object = JS.eval(<<~JS)
       return { foo() { return true; } };
     JS
-    assert_raise(NoMethodError) { object.bar }
+    e = assert_raise(NoMethodError) { object.bar }
+    assert_equal "undefined method `bar' for an instance of JS::Object",
+                 e.message
+
+    e = assert_raise(NoMethodError) { object.bar? }
+    assert_equal "undefined method `bar' for an instance of JS::Object",
+                 e.message
   end
 
   def test_respond_to_missing?
     object = JS.eval(<<~JS)
       return { foo() { return true; } };
     JS
-    assert_true object.respond_to?(:foo)
-    assert_false object.respond_to?(:bar)
+    assert_true object.__send__(:respond_to_missing?, :foo, false)
+    assert_false object.__send__(:respond_to_missing?, :bar, false)
+
+    # new is method of JS::Object
+    assert_false object.__send__(:respond_to_missing?, :new, false)
+
+    # send is not implemented in JS::Object,
+    # because JS::Object is a subclass of JS::BaseObject
+    assert_false object.__send__(:respond_to_missing?, :send, false)
+  end
+
+  def test_send_method_for_javascript_object_with_send_method
+    object = JS.eval(<<~JS)
+      return { send(message) { return message; } };
+    JS
+    assert_equal "hello", object.send("hello").to_s
+  end
+
+  def test_send_method_for_javascript_object_without_send_method
+    object = JS.eval(<<~JS)
+      return { write(message) { return message; } };
+    JS
+    assert_raise(NoMethodError) { object.send("hello") }
   end
 
   def test_member_get
@@ -204,6 +401,8 @@ class JS::TestObject < Test::Unit::TestCase
     assert_equal 42.to_s, object["foo"].to_s
 
     assert_raise(JS::Error) { JS::Undefined[:foo] }
+
+    assert_equal JS::Undefined.to_s, object["bar"].to_s
   end
 
   def test_member_set
@@ -216,11 +415,30 @@ class JS::TestObject < Test::Unit::TestCase
     assert_equal 42.to_s, object["foo"].to_s
 
     assert_raise(JS::Error) { JS::Undefined[:foo] = 42 }
+
+    # Create new property
+    object["bar"] = 41
+    assert_equal 41.to_s, object["bar"].to_s
+  end
+
+  def test_member_set_with_non_js_object
+    assert_raise_message("wrong argument type Object (expected JS::Object like object)") do
+      JS.global[:tmp] = Object.new
+    end
   end
 
   def test_member_set_with_stress_gc
     GC.stress = true
     JS.global[:tmp] = "1"
     GC.stress = false
+  end
+
+  def test_apply
+    object = JS.eval(<<~JS)
+      return { foo(a, b, c) { return a + b + c; } };
+    JS
+    assert_equal 6, object[:foo].apply(1, 2, 3).to_i
+    floor = JS.global[:Math][:floor]
+    assert_equal 3, floor.apply(3.14).to_i
   end
 end

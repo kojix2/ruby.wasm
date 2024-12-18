@@ -1,5 +1,5 @@
 {
-  "name": "ruby-wasm-emscripten",
+  "name": "@ruby/wasm-emscripten",
   "version": "0.1.0",
   "description": "WebAssembly port of CRuby by Emscripten",
   "type": "commonjs",
@@ -26,7 +26,6 @@
     "build": "rollup -c rollup.config.mjs"
   },
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^23.0.0",
-    "rollup": "^3.2.2"
+    "@rollup/plugin-commonjs": "^28.0.1"
   }
 }
